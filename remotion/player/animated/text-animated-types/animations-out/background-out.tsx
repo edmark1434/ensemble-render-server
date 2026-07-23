@@ -2,7 +2,7 @@ import { interpolate } from "remotion";
 import {
   FullBlockAnimationProps,
   renderBlockContent,
-} from "@/features/editor/player/animated/text-animated-types/animations-loop/full-block-animation";
+} from "../animations-loop/full-block-animation";
 import { getCharLayerStyles, getBackgroundFillStyle } from "../../../styles";
 
 // Treats missing color, "transparent", zero-alpha rgba(), and zero-alpha

@@ -27,19 +27,19 @@ import Heartbeat from "./text-animated-types/animations-loop/heartbeat";
 import Wave from "./text-animated-types/animations-loop/wave";
 import ShakyLettersText from "./text-animated-types/animations-loop/shaky-letters-text";
 import PulseText from "./text-animated-types/animations-loop/pulse";
-import {AnimatedChar} from "@/features/editor/player/animated/text-animated-types/animated-char";
-import TypeWriterIn from "@/features/editor/player/animated/text-animated-types/animations-in/type-writer-in";
-import SoundWaveIn from "@/features/editor/player/animated/text-animated-types/animations-in/sound-wave-in";
+import {AnimatedChar} from "./text-animated-types/animated-char";
+import TypeWriterIn from "./text-animated-types/animations-in/type-writer-in";
+import SoundWaveIn from "./text-animated-types/animations-in/sound-wave-in";
 import BackgroundIn from "./text-animated-types/animations-in/background-in";
-import CountDownIn from "@/features/editor/player/animated/text-animated-types/animations-in/count-down-in";
-import TypeWriterOut from "@/features/editor/player/animated/text-animated-types/animations-out/type-writer-out";
-import BackgroundOut from "@/features/editor/player/animated/text-animated-types/animations-out/background-out";
-import Spin from "@/features/editor/player/animated/text-animated-types/animations-loop/spin";
-import Rotate3d from "@/features/editor/player/animated/text-animated-types/animations-loop/rotate-3d";
-import FontChange from "@/features/editor/player/animated/text-animated-types/animations-loop/font-change";
-import ShakeText from "@/features/editor/player/animated/text-animated-types/animations-loop/shake-text";
-import Vintage from "@/features/editor/player/animated/text-animated-types/animations-loop/vintage";
-import Glitch from "@/features/editor/player/animated/text-animated-types/animations-loop/glitch";
+import CountDownIn from "./text-animated-types/animations-in/count-down-in";
+import TypeWriterOut from "./text-animated-types/animations-out/type-writer-out";
+import BackgroundOut from "./text-animated-types/animations-out/background-out";
+import Spin from "./text-animated-types/animations-loop/spin";
+import Rotate3d from "./text-animated-types/animations-loop/rotate-3d";
+import FontChange from "./text-animated-types/animations-loop/font-change";
+import ShakeText from "./text-animated-types/animations-loop/shake-text";
+import Vintage from "./text-animated-types/animations-loop/vintage";
+import Glitch from "./text-animated-types/animations-loop/glitch";
 
 const animationsIn: { [key: string]: React.FC<any> } = {
   animatedTextIn: AnimatedTextIn,

@@ -2,7 +2,7 @@ import { interpolate } from "remotion";
 import {
   FullBlockAnimationProps,
   renderBlockContent,
-} from "@/features/editor/player/animated/text-animated-types/animations-loop/full-block-animation";
+} from "../animations-loop/full-block-animation";
 
 const numbers = ["3", "2", "1"];
 

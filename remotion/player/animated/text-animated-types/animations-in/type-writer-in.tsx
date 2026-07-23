@@ -1,13 +1,13 @@
 import { ITextDetails } from "@designcombo/types";
 import { useMemo } from "react";
 import { interpolate } from "remotion";
-import { AnimatedChar } from "@/features/editor/player/animated/text-animated-types/animated-char";
+import { AnimatedChar } from "../animated-char";
 import {
   getCharLayerStyles,
   getGradientBoxStyle,
   getLineHeightPx,
   getWrappedTextLayout
-} from "@/features/editor/player/styles";
+} from "../../../styles";
 
 export default function TypeWriterIn({
                                        frame,

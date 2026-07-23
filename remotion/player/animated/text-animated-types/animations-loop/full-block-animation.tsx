@@ -1,6 +1,6 @@
 import React from "react";
 import { ITextDetails } from "@designcombo/types";
-import { AnimatedChar } from "@/features/editor/player/animated/text-animated-types/animated-char";
+import { AnimatedChar } from "../animated-char";
 
 export interface FullBlockAnimationProps {
   lines: string[];

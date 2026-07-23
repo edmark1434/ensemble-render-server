@@ -1,7 +1,7 @@
 import { useCurrentFrame } from "remotion";
 import { TextAnimated } from "./animated/text-animated";
 import { ITextDetails } from "@designcombo/types";
-import { getTextColorStyle } from "@/features/editor/player/styles";
+import { getTextColorStyle } from "./styles";
 
 // inline editing is now disabled
 

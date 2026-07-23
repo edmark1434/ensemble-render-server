@@ -1,8 +1,7 @@
 import React, { useEffect, useRef, useState } from "react";
 import styled from "@emotion/styled";
 import { css, keyframes } from "@emotion/react";
-import { useCurrentPlayerFrame } from "../../hooks/use-current-frame";
-import useStore from "../../store/use-store";
+import { useCurrentFrame } from "remotion";
 import { ANIMATION_CAPTION_LIST } from "./caption-animations";
 import { isGradientColor } from "../styles";
 import {
@@ -144,28 +143,27 @@ interface CaptionWordProps {
 }
 
 export const CaptionWord: React.FC<CaptionWordProps> = ({
-                                                          word,
-                                                          offsetFrom,
-                                                          activeColor,
-                                                          activeFillColor,
-                                                          appearedColor,
-                                                          color,
-                                                          animation,
-                                                          globalOpacity,
-                                                          isKeywordColor,
-                                                          preservedColorKeyWord,
-                                                          scaleFactor,
-                                                          animationNoneCaption,
-                                                          showObject,
-                                                          lineIndex,
-                                                          currentLine,
-                                                          isShapeLayer,
-                                                          activeFillBorderRadius,
-                                                          textDecoration
-                                                        }) => {
+  word,
+  offsetFrom,
+  activeColor,
+  activeFillColor,
+  appearedColor,
+  color,
+  animation,
+  globalOpacity,
+  isKeywordColor,
+  preservedColorKeyWord,
+  scaleFactor,
+  animationNoneCaption,
+  showObject,
+  lineIndex,
+  currentLine,
+  isShapeLayer,
+  activeFillBorderRadius,
+  textDecoration
+}) => {
   const fps = 30;
-  const { playerRef } = useStore();
-  const currentFrame = useCurrentPlayerFrame(playerRef!);
+  const currentFrame = useCurrentFrame();
   const { start, end } = word;
   const startAtFrame = ((start + offsetFrom) / 1000) * fps;
   const endAtFrame = ((end + offsetFrom) / 1000) * fps;

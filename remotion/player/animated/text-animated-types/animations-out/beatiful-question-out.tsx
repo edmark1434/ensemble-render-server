@@ -1,5 +1,5 @@
 import { interpolate, spring } from "remotion";
-import {AnimatedChar} from "@/features/editor/player/animated/text-animated-types/animated-char";
+import {AnimatedChar} from "../animated-char";
 
 const BeatifulQuestionAnimationOut = ({
   char,
