@@ -60,7 +60,8 @@ const Composition: React.FC<VideoEditorSchemaProps> = ({
               return SequenceItem[item.type](typedTrackItemsMap[item.id], {
                 fps,
                 isTransition: true,
-                size
+                size,
+                frame
               });
             })}
           </TransitionSeries>

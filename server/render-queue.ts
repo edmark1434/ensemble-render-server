@@ -94,6 +94,9 @@ export const makeRenderQueue = ({
           });
         },
         outputLocation: path.join(rendersDir, `${jobId}.mp4`),
+        onBrowserLog: (info) => {
+          console.log(`[browser] ${info.type}: ${info.text}`);
+        },
       });
 
       jobs.set(jobId, {

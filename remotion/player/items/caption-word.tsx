@@ -1,7 +1,6 @@
 import React, { useEffect, useRef, useState } from "react";
 import styled from "@emotion/styled";
 import { css, keyframes } from "@emotion/react";
-import { useCurrentFrame } from "remotion";
 import { ANIMATION_CAPTION_LIST } from "./caption-animations";
 import { isGradientColor } from "../styles";
 import {
@@ -140,6 +139,7 @@ interface CaptionWordProps {
   isShapeLayer: boolean;
   activeFillBorderRadius: number;
   textDecoration?: string;
+  frame: number;
 }
 
 export const CaptionWord: React.FC<CaptionWordProps> = ({
@@ -160,10 +160,11 @@ export const CaptionWord: React.FC<CaptionWordProps> = ({
   currentLine,
   isShapeLayer,
   activeFillBorderRadius,
-  textDecoration
+  textDecoration,
+  frame
 }) => {
   const fps = 30;
-  const currentFrame = useCurrentFrame();
+  const currentFrame = frame;
   const { start, end } = word;
   const startAtFrame = ((start + offsetFrom) / 1000) * fps;
   const endAtFrame = ((end + offsetFrom) / 1000) * fps;

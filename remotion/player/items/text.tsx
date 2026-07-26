@@ -4,6 +4,7 @@ import { BoxAnim, ContentAnim } from "@designcombo/animations";
 import { calculateContainerStyles, calculateTextStyles } from "../styles";
 import { getAnimations } from "../../utils/get-animations";
 import { calculateFrames } from "../../utils/frames";
+import { loadFonts } from "../../utils/load-fonts";
 import MotionText from "../motion-text";
 
 export default function Text({
@@ -53,6 +54,12 @@ export default function Text({
       }
     });
   }
+
+  loadFonts([
+    { fontFamily: details.fontFamily, url: details.fontUrl },
+    ...animationFonts
+  ]);
+
   const currentFrame = (frame || 0) - (item.display.from * fps) / 1000;
 
   const children = (
