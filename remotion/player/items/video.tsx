@@ -31,6 +31,9 @@ export const Video = ({
   const { durationInFrames } = calculateFrames(item.display, fps);
   const currentFrame = (frame || 0) - (item.display.from * fps) / 1000;
 
+  const trimFrom = item.trim?.from ?? 0;
+  const trimTo = item.trim?.to ?? item.display.to - item.display.from;
+
   const children = (
     <BoxAnim
       style={calculateContainerStyles(details, crop, {
@@ -53,11 +56,11 @@ export const Video = ({
         >
           <div style={calculateMediaStyles(details, crop)}>
             <OffthreadVideo
-              startFrom={(item.trim?.from! / 1000) * fps}
-              endAt={(item.trim?.to! / 1000) * fps || 1 / fps}
+              trimBefore={(trimFrom / 1000) * fps}
+              trimAfter={(trimTo / 1000) * fps || 1 / fps}
               playbackRate={playbackRate}
               src={details.src}
-              volume={details.volume || 0 / 100}
+              volume={() => (details.volume ?? 100) / 100}
             />
           </div>
         </MaskAnim>

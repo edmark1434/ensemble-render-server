@@ -5,35 +5,34 @@ import {
 } from "@remotion/renderer";
 import { randomUUID } from "node:crypto";
 import path from "node:path";
+import type { VideoEditorSchemaProps } from "../remotion/schema";
 
-interface JobData {
-  titleText: string;
-}
+type JobData = VideoEditorSchemaProps;
 
 type JobState =
   | {
-      status: "queued";
-      data: JobData;
-      cancel: () => void;
-    }
+  status: "queued";
+  data: JobData;
+  cancel: () => void;
+}
   | {
-      status: "in-progress";
-      progress: number;
-      data: JobData;
-      cancel: () => void;
-    }
+  status: "in-progress";
+  progress: number;
+  data: JobData;
+  cancel: () => void;
+}
   | {
-      status: "completed";
-      videoUrl: string;
-      data: JobData;
-    }
+  status: "completed";
+  videoUrl: string;
+  data: JobData;
+}
   | {
-      status: "failed";
-      error: Error;
-      data: JobData;
-    };
+  status: "failed";
+  error: Error;
+  data: JobData;
+};
 
-const compositionId = "HelloWorld";
+const compositionId = "VideoEditor";
 
 export const makeRenderQueue = ({
   port,
@@ -50,7 +49,8 @@ export const makeRenderQueue = ({
   const processRender = async (jobId: string) => {
     const job = jobs.get(jobId);
     if (!job) {
-      throw new Error(`Render job ${jobId} not found`);
+      // job cancelled while queued, nothing to render
+      return;
     }
 
     const { cancel, cancelSignal } = makeCancelSignal();
@@ -64,7 +64,12 @@ export const makeRenderQueue = ({
 
     try {
       const inputProps = {
-        titleText: job.data.titleText,
+        trackItemIds: job.data.trackItemIds,
+        trackItemsMap: job.data.trackItemsMap,
+        transitionsMap: job.data.transitionsMap,
+        fps: job.data.fps,
+        size: job.data.size,
+        duration: job.data.duration,
       };
 
       const composition = await selectComposition({
@@ -121,7 +126,9 @@ export const makeRenderQueue = ({
       },
     });
 
-    queue = queue.then(() => processRender(jobId));
+    queue = queue.then(() => processRender(jobId)).catch((error) => {
+      console.error(`Unhandled error processing job ${jobId}:`, error);
+    });
   };
 
   function createJob(data: JobData) {

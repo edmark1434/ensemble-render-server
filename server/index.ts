@@ -1,10 +1,12 @@
 import express from "express";
+import cors from "cors";
 import { makeRenderQueue } from "./render-queue";
 import { bundle } from "@remotion/bundler";
 import path from "node:path";
 import { ensureBrowser } from "@remotion/renderer";
+import { videoEditorSchema } from "../remotion/schema";
 
-const { PORT = 3000, REMOTION_SERVE_URL } = process.env;
+const { PORT = 3001, REMOTION_SERVE_URL, CLIENT_ORIGIN = "http://localhost:3000" } = process.env;
 
 function setupApp({ remotionBundleUrl }: { remotionBundleUrl: string }) {
   const app = express();
@@ -17,33 +19,35 @@ function setupApp({ remotionBundleUrl }: { remotionBundleUrl: string }) {
     rendersDir,
   });
 
-  // Host renders on /renders
+  app.use(cors({ origin: CLIENT_ORIGIN }));
   app.use("/renders", express.static(rendersDir));
-  app.use(express.json());
+  app.use(express.json({ limit: "50mb" }));
 
-  // Endpoint to create a new job
   app.post("/renders", async (req, res) => {
-    const titleText = req.body?.titleText || "Hello, world!";
+    const parsed = videoEditorSchema.safeParse(req.body);
 
-    if (typeof titleText !== "string") {
-      res.status(400).json({ message: "titleText must be a string" });
+    if (!parsed.success) {
+      res.status(400).json({ message: "Invalid render payload", issues: parsed.error.issues });
       return;
     }
 
-    const jobId = queue.createJob({ titleText });
+    const jobId = queue.createJob(parsed.data);
 
     res.json({ jobId });
   });
 
-  // Endpoint to get a job status
   app.get("/renders/:jobId", (req, res) => {
     const jobId = req.params.jobId;
     const job = queue.jobs.get(jobId);
 
+    if (!job) {
+      res.status(404).json({ message: "Job not found" });
+      return;
+    }
+
     res.json(job);
   });
 
-  // Endpoint to cancel a job
   app.delete("/renders/:jobId", (req, res) => {
     const jobId = req.params.jobId;
 
@@ -73,11 +77,11 @@ async function main() {
   const remotionBundleUrl = REMOTION_SERVE_URL
     ? REMOTION_SERVE_URL
     : await bundle({
-        entryPoint: path.resolve("remotion/index.ts"),
-        onProgress(progress) {
-          console.info(`Bundling Remotion project: ${progress}%`);
-        },
-      });
+      entryPoint: path.resolve("remotion/index.ts"),
+      onProgress(progress) {
+        console.info(`Bundling Remotion project: ${progress}%`);
+      },
+    });
 
   const app = setupApp({ remotionBundleUrl });
 
