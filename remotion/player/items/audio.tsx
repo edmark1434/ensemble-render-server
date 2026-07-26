@@ -1,6 +1,6 @@
 import { IAudio } from "@designcombo/types";
 import { BaseSequence, SequenceItemOptions } from "../base-sequence";
-import { Audio as RemotionAudio } from "remotion";
+import { Html5Audio } from "remotion";
 
 export default function Audio({
   item,
@@ -12,13 +12,17 @@ export default function Audio({
   const { fps } = options;
   const { details } = item;
   const playbackRate = item.playbackRate || 1;
+
+  const trimFrom = item.trim?.from ?? 0;
+  const trimTo = item.trim?.to ?? item.display.to - item.display.from;
+
   const children = (
-    <RemotionAudio
-      startFrom={(item.trim?.from! / 1000) * fps}
-      endAt={(item.trim?.to! / 1000) * fps || 1 / fps}
+    <Html5Audio
+      trimBefore={(trimFrom / 1000) * fps}
+      trimAfter={(trimTo / 1000) * fps || 1 / fps}
       playbackRate={playbackRate}
       src={details.src}
-      volume={details.volume! / 100}
+      volume={() => (details.volume ?? 100) / 100}
     />
   );
   return BaseSequence({ item, options, children });
