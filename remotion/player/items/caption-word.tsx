@@ -1,4 +1,4 @@
-import React, { useEffect, useRef, useState } from "react";
+import React, { useEffect, useLayoutEffect, useRef, useState } from "react";
 import styled from "@emotion/styled";
 import { css, keyframes } from "@emotion/react";
 import { ANIMATION_CAPTION_LIST } from "./caption-animations";
@@ -9,6 +9,7 @@ import {
   ANIMATION_FUNCTIONS,
   WordAnimationState
 } from "./caption-word-animations";
+import { continueRender, delayRender } from "remotion";
 
 const scalePulse = keyframes`
     0% { transform: scale(1); }
@@ -34,90 +35,88 @@ interface WordSpanProps {
 }
 
 const WordSpan = styled.span<WordSpanProps>`
-    position: relative;
-    display: inline-block;
-    scale: ${(props) => props.scale};
-    border-radius: ${(props) => props.pillRadiusPx}px;
-    z-index: 99;
-    transition: opacity 0.2s ease;
-    text-decoration: ${(props) => props.textDecoration};
+  position: relative;
+  display: inline-block;
+  scale: ${(props) => props.scale};
+  border-radius: ${(props) => props.pillRadiusPx}px;
+  z-index: 99;
+  text-decoration: ${(props) => props.textDecoration};
 
-    color: ${(props) =>
-            props.isShapeLayer || props.isGradientColor ? "transparent" : props.wordColor};
+  color: ${(props) =>
+    props.isShapeLayer || props.isGradientColor ? "transparent" : props.wordColor};
 
-    ${(props) =>
-            !props.isShapeLayer &&
-            props.isGradientColor &&
-            css`
-                background-image: ${props.wordColor};
-                -webkit-background-clip: text;
-                background-clip: text;
-                -webkit-text-fill-color: transparent;
-            `}
+  ${(props) =>
+    !props.isShapeLayer &&
+    props.isGradientColor &&
+    css`
+      background-image: ${props.wordColor};
+      -webkit-background-clip: text;
+      background-clip: text;
+      -webkit-text-fill-color: transparent;
+    `}
 
-    ${(props) => {
-        if (
-                !props.isShapeLayer &&
-                props.isActive &&
-                props.animation.includes("underline-effect")
-        ) {
-            return `
+  ${(props) => {
+    if (
+      !props.isShapeLayer &&
+      props.isActive &&
+      props.animation.includes("underline-effect")
+    ) {
+      return `
         text-decoration: underline;
         text-decoration-color: #9238ef;
         text-decoration-thickness: 0.2em;
       `;
-        }
-
-        if (!props.isActive && props.animationNoneCaption) {
-            return `display: none;`;
-        }
-
-        if (
-                !props.isAppeared &&
-                (ANIMATION_CAPTION_LIST.includes(props.animation) ||
-                        props.showObject === "word")
-        ) {
-            return `display: none;`;
-        }
-
-        if (!props.isActive && props.animation === "customAnimation1") {
-            return `display: none;`;
-        }
-
-        return "";
-    }}
-
-    &::before {
-        content: "";
-        position: absolute;
-        z-index: -1;
-        left: -0.2em;
-        right: -0.2em;
-        top: 0;
-        bottom: 0;
-        transition: background-color 0.2s ease;
-        border-radius: ${(props) => props.pillRadiusPx}px;
     }
 
-    ${(props) =>
-            props.isShapeLayer &&
-            props.isActive &&
-            css`
-                &::before {
-                    ${props.isActiveFillGradient
-                            ? css`background-image: ${props.activeFillColor};`
-                            : css`background-color: ${props.activeFillColor};`}
+    if (!props.isActive && props.animationNoneCaption) {
+      return `display: none;`;
+    }
 
-                    ${props.animation === "captionAnimation10" ||
-                    props.animation === "captionAnimationKeyword42" ||
-                    props.animation === "captionAnimationKeyword57" ||
-                    (props.animation === "captionAnimationKeyword48" &&
-                            css`
-                                animation: ${scalePulse} 0.4s ease-in-out;
-                                transform-origin: center;
-                            `)}
-                }
-            `}
+    if (
+      !props.isAppeared &&
+      (ANIMATION_CAPTION_LIST.includes(props.animation) ||
+        props.showObject === "word")
+    ) {
+      return `display: none;`;
+    }
+
+    if (!props.isActive && props.animation === "customAnimation1") {
+      return `display: none;`;
+    }
+
+    return "";
+  }}
+
+  &::before {
+    content: "";
+    position: absolute;
+    z-index: -1;
+    left: -0.2em;
+    right: -0.2em;
+    top: 0;
+    bottom: 0;
+    border-radius: ${(props) => props.pillRadiusPx}px;
+  }
+
+  ${(props) =>
+    props.isShapeLayer &&
+    props.isActive &&
+    css`
+      &::before {
+        ${props.isActiveFillGradient
+          ? css`background-image: ${props.activeFillColor};`
+          : css`background-color: ${props.activeFillColor};`}
+
+        ${props.animation === "captionAnimation10" ||
+        props.animation === "captionAnimationKeyword42" ||
+        props.animation === "captionAnimationKeyword57" ||
+        (props.animation === "captionAnimationKeyword48" &&
+          css`
+            animation: ${scalePulse} 0.4s ease-in-out;
+            transform-origin: center;
+          `)}
+      }
+    `}
 `;
 
 interface CaptionWordProps {
@@ -177,17 +176,23 @@ export const CaptionWord: React.FC<CaptionWordProps> = ({
   const spanRef = useRef<HTMLSpanElement>(null);
   const [pillSize, setPillSize] = useState({ width: 0, height: 0 });
 
-  useEffect(() => {
+  useLayoutEffect(() => {
     const el = spanRef.current;
     if (!el) return;
 
-    const update = () => {
+    const handle = delayRender("measuring caption word pill size");
+    let hasContinued = false;
+
+    const measure = () => {
       setPillSize({ width: el.offsetWidth, height: el.offsetHeight });
+      if (!hasContinued) {
+        hasContinued = true;
+        continueRender(handle);
+      }
     };
+    measure();
 
-    update();
-
-    const observer = new ResizeObserver(update);
+    const observer = new ResizeObserver(measure);
     observer.observe(el);
     return () => observer.disconnect();
   }, []);

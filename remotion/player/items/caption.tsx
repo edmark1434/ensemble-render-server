@@ -18,6 +18,7 @@ import {
   rotationOptions,
   AnimationConfig
 } from "./caption-animations";
+import { loadFonts } from "../../utils/load-fonts";
 
 // Bundles the two per-word style knobs that don't vary per word (only per
 // layer, since the shape layer intentionally suppresses decoration).
@@ -49,6 +50,8 @@ export default function Caption({
   // Calculate scale factor and update details
   const updatedDetails = calculateUpdatedDetails(details);
   const scaleFactor = updatedDetails.scaleFactor;
+
+  loadFonts([{ fontFamily: updatedDetails.fontFamily, url: updatedDetails.fontUrl }]);
 
   // Calculate animation transforms
   const { transformStyles, globalOpacity, extraStyles } =
@@ -162,7 +165,6 @@ export default function Caption({
             position: "relative",
             borderRadius: `${boxRadiusPx}px`,
             ...transformStyles,
-            transition: "transform 0.2s ease",
             display: currentFrame > 0 ? "flex" : "none",
             alignItems: "center",
             justifyContent: justifyContentValue,
