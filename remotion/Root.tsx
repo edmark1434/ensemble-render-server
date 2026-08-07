@@ -14,12 +14,19 @@ export const RemotionRoot: React.FC = () => {
         height={1080}
         durationInFrames={300}
         defaultProps={{
+          id: "default",
           trackItemIds: [],
           trackItemsMap: {},
           transitionsMap: {},
           fps: 30,
           size: { width: 1920, height: 1080 },
-          duration: 10000
+          duration: 10000,
+          projectName: "My Project",
+          background: { type: "color", value: "#000000" },
+          type: "video",
+          format: "mp4",
+          resolution: 1080,
+          bitrate: 8000
         }}
         calculateMetadata={async ({ props }) => {
           const frames = Math.round((props.duration / 1000) * props.fps) + 1;

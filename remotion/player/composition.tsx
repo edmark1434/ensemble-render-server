@@ -1,16 +1,18 @@
+import { AbsoluteFill, Img, useCurrentFrame } from "remotion";
 import { SequenceItem } from "./sequence-item";
 import { groupTrackItems } from "../utils/track-items";
 import { TransitionSeries, Transitions } from "@designcombo/transitions";
-import { useCurrentFrame } from "remotion";
 import { ITrackItem, ITransition } from "@designcombo/types";
 import { VideoEditorSchemaProps } from "../schema";
+import { getBackgroundFillStyle } from "./styles";
 
 const Composition: React.FC<VideoEditorSchemaProps> = ({
   trackItemIds,
   trackItemsMap,
   transitionsMap,
   fps,
-  size
+  size,
+  background
 }) => {
   const frame = useCurrentFrame();
   const typedTrackItemsMap = trackItemsMap as Record<string, ITrackItem>;
@@ -32,7 +34,14 @@ const Composition: React.FC<VideoEditorSchemaProps> = ({
     .filter((group) => group.length > 0);
 
   return (
-    <>
+    <AbsoluteFill style={getBackgroundFillStyle(background?.type === "color" ? background.value : "#000000")}>
+      {/*{background?.type === "image" && (*/}
+      {/*  <Img*/}
+      {/*    src={background.value}*/}
+      {/*    style={{ position: "absolute", width: "100%", height: "100%", objectFit: "cover" }}*/}
+      {/*  />*/}
+      {/*)}*/}
+
       {visibleGroupedItems.map((group, index) => {
         if (group.length === 1) {
           const item = typedTrackItemsMap[group[0].id];
@@ -67,7 +76,7 @@ const Composition: React.FC<VideoEditorSchemaProps> = ({
           </TransitionSeries>
         );
       })}
-    </>
+    </AbsoluteFill>
   );
 };
 

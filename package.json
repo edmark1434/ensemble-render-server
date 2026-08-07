@@ -23,6 +23,8 @@
     "@remotion/renderer": "^4.0.0",
     "@remotion/transitions": "^4.0.0",
     "@remotion/zod-types": "^4.0.0",
+    "@types/archiver": "^8.0.0",
+    "archiver": "^8.0.0",
     "cors": "^2.8.6",
     "express": "5.1.0",
     "lodash": "^4.18.1",
