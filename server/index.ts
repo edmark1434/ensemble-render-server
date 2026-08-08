@@ -1,6 +1,8 @@
 import express from "express";
 import cors from "cors";
 import { makeRenderQueue } from "./render-queue";
+import { makeLambdaRenderQueue } from "./lambda-render-queue";
+import { getTierForUser, getRenderTarget, checkTierLimits } from "./tiers";
 import { bundle } from "@remotion/bundler";
 import path from "node:path";
 import { ensureBrowser } from "@remotion/renderer";
@@ -19,8 +21,34 @@ function setupApp({ remotionBundleUrl }: { remotionBundleUrl: string }) {
     rendersDir,
   });
 
+  const lambdaQueue = makeLambdaRenderQueue();
+
+  const sanitizeFilename = (name: string): string => {
+    const trimmed = name.trim();
+    if (!trimmed) return "Untitled";
+    return trimmed.replace(/[/\\?%*:|"<>]/g, "-");
+  };
+
   app.use(cors({ origin: CLIENT_ORIGIN }));
-  app.use("/renders", express.static(rendersDir));
+  app.use(
+    "/renders",
+    express.static(rendersDir, {
+      setHeaders: (res, filePath) => {
+        const ext = path.extname(filePath);
+        const jobId = path.basename(filePath, ext);
+        const job = queue.jobs.get(jobId);
+        const projectName = job?.status === "completed" ? job.data.projectName : undefined;
+
+        res.setHeader("Content-Disposition", `attachment; filename="${sanitizeFilename(projectName ?? jobId)}${ext}"`);
+
+        res.on("finish", () => {
+          queue.deleteJob(jobId).catch((error) => {
+            console.error(`Failed to delete render output after download for job ${jobId}:`, error);
+          });
+        });
+      },
+    })
+  );
   app.use(express.json({ limit: "50mb" }));
 
   app.post("/renders", async (req, res) => {
@@ -31,42 +59,68 @@ function setupApp({ remotionBundleUrl }: { remotionBundleUrl: string }) {
       return;
     }
 
-    const jobId = queue.createJob(parsed.data);
+    const userId = req.header("x-user-id") ?? undefined;
+    const tier = getTierForUser(userId);
 
-    res.json({ jobId });
+    const violations = checkTierLimits(parsed.data, tier);
+    if (violations.length > 0) {
+      res.status(403).json({ message: "Render exceeds plan limits", tier, violations });
+      return;
+    }
+
+    const target = getRenderTarget(parsed.data.type, tier);
+    const jobId = target === "server" ? queue.createJob(parsed.data) : lambdaQueue.createJob(parsed.data, tier);
+
+    res.json({ jobId, target });
   });
 
   app.get("/renders/:jobId", (req, res) => {
     const jobId = req.params.jobId;
-    const job = queue.jobs.get(jobId);
+    const inServerQueue = queue.jobs.has(jobId);
+    const job = inServerQueue ? queue.jobs.get(jobId) : lambdaQueue.jobs.get(jobId);
 
     if (!job) {
       res.status(404).json({ message: "Job not found" });
+      return;
+    }
+
+    if (job.status === "queued") {
+      const queuePosition = inServerQueue ? queue.getQueuePosition(jobId) : lambdaQueue.getQueuePosition(jobId);
+      res.json({ ...job, queuePosition });
       return;
     }
 
     res.json(job);
   });
 
-  app.delete("/renders/:jobId", (req, res) => {
+  app.delete("/renders/:jobId", async (req, res) => {
     const jobId = req.params.jobId;
+    const inServerQueue = queue.jobs.has(jobId);
+    const inLambdaQueue = lambdaQueue.jobs.has(jobId);
 
-    const job = queue.jobs.get(jobId);
-
-    if (!job) {
+    if (!inServerQueue && !inLambdaQueue) {
       res.status(404).json({ message: "Job not found" });
       return;
     }
 
-    if (job.status !== "queued" && job.status !== "in-progress") {
-      res.status(400).json({ message: "Job is not cancellable" });
+    const deleted = inServerQueue ? await queue.deleteJob(jobId) : await lambdaQueue.deleteJob(jobId);
+
+    if (!deleted) {
+      res.status(404).json({ message: "Job not found" });
       return;
     }
 
-    job.cancel();
-
-    res.json({ message: "Job cancelled" });
+    res.json({ message: "Job deleted" });
   });
+
+  const shutdown = (signal: string) => {
+    console.info(`Received ${signal}, shutting down.`);
+    queue.stopExpirySweep();
+    process.exit(0);
+  };
+
+  process.on("SIGTERM", () => shutdown("SIGTERM"));
+  process.on("SIGINT", () => shutdown("SIGINT"));
 
   return app;
 }

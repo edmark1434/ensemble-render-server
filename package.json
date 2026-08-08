@@ -4,8 +4,8 @@
   "description": "Render server for Ensemble",
   "scripts": {
     "build": "remotion bundle",
-    "dev": "tsx watch server",
-    "start": "tsx server",
+    "dev": "tsx watch --env-file=.env server",
+    "start": "tsx --env-file=.env server",
     "lint": "eslint . && tsc",
     "remotion:upgrade": "remotion upgrade",
     "remotion:studio": "remotion studio"
@@ -20,6 +20,7 @@
     "@remotion/bundler": "4.0.503",
     "@remotion/cli": "4.0.503",
     "@remotion/fonts": "4.0.503",
+    "@remotion/lambda": "4.0.503",
     "@remotion/renderer": "4.0.503",
     "@remotion/transitions": "4.0.503",
     "@remotion/zod-types": "4.0.503",
