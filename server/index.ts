@@ -41,11 +41,13 @@ function setupApp({ remotionBundleUrl }: { remotionBundleUrl: string }) {
 
         res.setHeader("Content-Disposition", `attachment; filename="${sanitizeFilename(projectName ?? jobId)}${ext}"`);
 
-        res.on("finish", () => {
-          queue.deleteJob(jobId).catch((error) => {
-            console.error(`Failed to delete render output after download for job ${jobId}:`, error);
+        if (res.req.method === "GET") {
+          res.on("finish", () => {
+            queue.deleteJob(jobId).catch((error) => {
+              console.error(`Failed to delete render output after download for job ${jobId}:`, error);
+            });
           });
-        });
+        }
       },
     })
   );

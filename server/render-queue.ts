@@ -524,7 +524,7 @@ export const makeRenderQueue = ({
           createdAt: job.createdAt,
         });
 
-        await new Promise((r) => setTimeout(r, 1500));
+        await new Promise((r) => setTimeout(r, 1200));
       }
     } catch (error) {
       if (cancelledOverflowJobIds.has(jobId)) {
