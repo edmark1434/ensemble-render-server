@@ -59,7 +59,22 @@ function setupApp({ remotionBundleUrl }: { remotionBundleUrl: string }) {
       return;
     }
 
-    const userId = req.header("x-user-id") ?? undefined;
+    const userId = req.header("x-user-id");
+    if (!userId) {
+      res.status(401).json({ message: "Missing user identity" });
+      return;
+    }
+
+    const existing = queue.getActiveJobForUser(userId) ?? lambdaQueue.getActiveJobForUser(userId);
+    if (existing) {
+      res.status(409).json({
+        message: "You already have an export in progress or ready for download.",
+        jobId: existing.jobId,
+        status: existing.job.status
+      });
+      return;
+    }
+
     const tier = getTierForUser(userId);
 
     const violations = checkTierLimits(parsed.data, tier);
@@ -69,17 +84,52 @@ function setupApp({ remotionBundleUrl }: { remotionBundleUrl: string }) {
     }
 
     const target = getRenderTarget(parsed.data.type, tier);
-    const jobId = target === "server" ? queue.createJob(parsed.data) : lambdaQueue.createJob(parsed.data, tier);
+    const jobId = target === "server" ? queue.createJob(parsed.data, userId) : lambdaQueue.createJob(parsed.data, tier, userId);
 
     res.json({ jobId, target });
   });
 
+  app.get("/renders/mine", (req, res) => {
+    const userId = req.header("x-user-id");
+    if (!userId) {
+      res.status(401).json({ message: "Missing user identity" });
+      return;
+    }
+
+    const existing = queue.getActiveJobForUser(userId) ?? lambdaQueue.getActiveJobForUser(userId);
+
+    if (!existing) {
+      res.json({ jobId: null });
+      return;
+    }
+
+    const { jobId, job } = existing;
+
+    if (job.status === "queued") {
+      const inServerQueue = queue.jobs.has(jobId);
+      const queuePosition = inServerQueue ? queue.getQueuePosition(jobId) : lambdaQueue.getQueuePosition(jobId);
+      res.json({ jobId, ...job, queuePosition });
+      return;
+    }
+
+    res.json({ jobId, ...job });
+  });
+
   app.get("/renders/:jobId", (req, res) => {
     const jobId = req.params.jobId;
+
+    const userId = req.header("x-user-id");
+    if (!userId) {
+      res.status(401).json({ message: "Missing user identity" });
+      return;
+    }
+
     const inServerQueue = queue.jobs.has(jobId);
     const job = inServerQueue ? queue.jobs.get(jobId) : lambdaQueue.jobs.get(jobId);
 
-    if (!job) {
+    // 404 (not 403) for a job that exists but belongs to someone else -
+    // don't confirm a jobId is valid to a caller who doesn't own it.
+    if (!job || job.userId !== userId) {
       res.status(404).json({ message: "Job not found" });
       return;
     }
@@ -95,10 +145,17 @@ function setupApp({ remotionBundleUrl }: { remotionBundleUrl: string }) {
 
   app.delete("/renders/:jobId", async (req, res) => {
     const jobId = req.params.jobId;
-    const inServerQueue = queue.jobs.has(jobId);
-    const inLambdaQueue = lambdaQueue.jobs.has(jobId);
 
-    if (!inServerQueue && !inLambdaQueue) {
+    const userId = req.header("x-user-id");
+    if (!userId) {
+      res.status(401).json({ message: "Missing user identity" });
+      return;
+    }
+
+    const inServerQueue = queue.jobs.has(jobId);
+    const job = inServerQueue ? queue.jobs.get(jobId) : lambdaQueue.jobs.get(jobId);
+
+    if (!job || job.userId !== userId) {
       res.status(404).json({ message: "Job not found" });
       return;
     }

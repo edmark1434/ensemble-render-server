@@ -18,11 +18,11 @@ import type { VideoEditorSchemaProps } from "../remotion/schema";
 type JobData = VideoEditorSchemaProps;
 
 type JobState =
-  | { status: "queued"; data: JobData; cancel: () => void }
-  | { status: "in-progress"; progress: number; data: JobData; cancel: () => void }
-  | { status: "completed"; videoUrl: string; data: JobData; completedAt: number; renderedVia: "local"; outputPath: string }
-  | { status: "completed"; videoUrl: string; data: JobData; completedAt: number; renderedVia: "lambda-overflow"; s3Key: string }
-  | { status: "failed"; error: Error; data: JobData };
+  | { status: "queued"; data: JobData; userId: string; createdAt: number; cancel: () => void }
+  | { status: "in-progress"; progress: number; data: JobData; userId: string; createdAt: number; cancel: () => void }
+  | { status: "completed"; videoUrl: string; data: JobData; userId: string; createdAt: number; completedAt: number; renderedVia: "local"; outputPath: string }
+  | { status: "completed"; videoUrl: string; data: JobData; userId: string; createdAt: number; completedAt: number; renderedVia: "lambda-overflow"; s3Key: string }
+  | { status: "failed"; error: Error; data: JobData; userId: string; createdAt: number };
 
 const compositionId = "VideoEditor";
 
@@ -91,7 +91,7 @@ export const makeRenderQueue = ({
   const PER_JOB_CONCURRENCY = 2;
 
   const MAX_OVERFLOW_JOBS = 16; // lambda, video only
-  const OVERFLOW_LAMBDA_COUNT = 2; // + 1 orchestrator = 3 invocations per overflow render
+  const OVERFLOW_LAMBDA_COUNT = 2; // + 1 orchestrator = 3 per render
 
   const {
     REMOTION_AWS_REGION,
@@ -175,12 +175,15 @@ export const makeRenderQueue = ({
     }
   };
 
-  function createJob(data: JobData) {
+  function createJob(data: JobData, userId: string) {
     const jobId = randomUUID();
+    const createdAt = Date.now();
 
     jobs.set(jobId, {
       status: "queued",
       data,
+      userId,
+      createdAt,
       cancel: () => {
         const idx = pendingJobIds.indexOf(jobId);
         if (idx !== -1) pendingJobIds.splice(idx, 1);
@@ -201,6 +204,19 @@ export const makeRenderQueue = ({
     return { position: index + 1, total: pendingJobIds.length };
   };
 
+  // "Active" = still holds the user's one-export-at-a-time slot: queued,
+  // rendering, or completed but not yet downloaded (download deletes the
+  // job). Failed jobs don't block - the user needs to be able to retry.
+  const getActiveJobForUser = (userId: string): { jobId: string; job: JobState } | null => {
+    for (const [jobId, job] of jobs.entries()) {
+      if (job.userId !== userId) continue;
+      if (job.status === "queued" || job.status === "in-progress" || job.status === "completed") {
+        return { jobId, job };
+      }
+    }
+    return null;
+  };
+
   // === local rendering: image, image-sequence, video (free), audio ===
 
   const processLocalRender = async (jobId: string) => {
@@ -219,6 +235,8 @@ export const makeRenderQueue = ({
       status: "in-progress",
       cancel: cancelHandler,
       data: job.data,
+      userId: job.userId,
+      createdAt: job.createdAt,
     });
 
     const inputProps = job.data;
@@ -263,6 +281,8 @@ export const makeRenderQueue = ({
           renderedVia: "local",
           outputPath,
           completedAt: Date.now(),
+          userId: job.userId,
+          createdAt: job.createdAt,
         });
         return;
       }
@@ -300,6 +320,8 @@ export const makeRenderQueue = ({
               status: "in-progress",
               cancel: cancelHandler,
               data: job.data,
+              userId: job.userId,
+              createdAt: job.createdAt,
             });
           },
           onBrowserLog: (info) => {
@@ -322,6 +344,8 @@ export const makeRenderQueue = ({
           renderedVia: "local",
           outputPath: zipPath,
           completedAt: Date.now(),
+          userId: job.userId,
+          createdAt: job.createdAt,
         });
         return;
       }
@@ -363,6 +387,8 @@ export const makeRenderQueue = ({
             status: "in-progress",
             cancel: cancelHandler,
             data: job.data,
+            userId: job.userId,
+            createdAt: job.createdAt,
           });
         },
         outputLocation: outputPath,
@@ -381,6 +407,8 @@ export const makeRenderQueue = ({
         renderedVia: "local",
         outputPath,
         completedAt: Date.now(),
+        userId: job.userId,
+        createdAt: job.createdAt,
       });
     } catch (error) {
       if (await handleIfCancelled(jobId, expectedOutputPaths)) return;
@@ -390,6 +418,8 @@ export const makeRenderQueue = ({
         status: "failed",
         error: error as Error,
         data: job.data,
+        userId: job.userId,
+        createdAt: job.createdAt,
       });
     }
   };
@@ -407,6 +437,8 @@ export const makeRenderQueue = ({
         status: "failed",
         error: new Error(`Unsupported format for overflow render: ${data.format}`),
         data,
+        userId: job.userId,
+        createdAt: job.createdAt,
       });
       return;
     }
@@ -416,6 +448,8 @@ export const makeRenderQueue = ({
       progress: 0,
       data,
       cancel: () => cancelledOverflowJobIds.add(jobId),
+      userId: job.userId,
+      createdAt: job.createdAt,
     });
 
     const outKey = `renders/${jobId}.${data.format}`;
@@ -461,6 +495,8 @@ export const makeRenderQueue = ({
             status: "failed",
             error: new Error(progress.errors[0]?.message ?? "Lambda overflow render failed"),
             data,
+            userId: job.userId,
+            createdAt: job.createdAt,
           });
           return;
         }
@@ -473,6 +509,8 @@ export const makeRenderQueue = ({
             renderedVia: "lambda-overflow",
             s3Key: outKey,
             completedAt: Date.now(),
+            userId: job.userId,
+            createdAt: job.createdAt,
           });
           return;
         }
@@ -482,6 +520,8 @@ export const makeRenderQueue = ({
           progress: progress.overallProgress,
           data,
           cancel: () => cancelledOverflowJobIds.add(jobId),
+          userId: job.userId,
+          createdAt: job.createdAt,
         });
 
         await new Promise((r) => setTimeout(r, 1500));
@@ -492,7 +532,13 @@ export const makeRenderQueue = ({
         jobs.delete(jobId);
         return;
       }
-      jobs.set(jobId, { status: "failed", error: error as Error, data });
+      jobs.set(jobId, {
+        status: "failed",
+        error: error as Error,
+        data,
+        userId: job.userId,
+        createdAt: job.createdAt,
+      });
     }
   };
 
@@ -594,6 +640,7 @@ export const makeRenderQueue = ({
     jobs,
     createJob,
     getQueuePosition,
+    getActiveJobForUser,
     deleteJob,
     stopExpirySweep: () => clearInterval(sweepInterval),
   };

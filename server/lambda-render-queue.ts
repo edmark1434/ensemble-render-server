@@ -14,10 +14,10 @@ type LambdaRegion = Parameters<typeof renderMediaOnLambda>[0]["region"];
 type LambdaCodec = Parameters<typeof renderMediaOnLambda>[0]["codec"];
 
 type JobState =
-  | { status: "queued"; data: JobData; tier: Tier; cancel: () => void }
-  | { status: "in-progress"; progress: number; data: JobData; tier: Tier; cancel: () => void }
-  | { status: "completed"; videoUrl: string; data: JobData; tier: Tier; key: string; completedAt: number }
-  | { status: "failed"; error: Error; data: JobData; tier: Tier };
+  | { status: "queued"; data: JobData; userId: string; createdAt: number; tier: Tier; cancel: () => void }
+  | { status: "in-progress"; progress: number; data: JobData; userId: string; createdAt: number; tier: Tier; cancel: () => void }
+  | { status: "completed"; videoUrl: string; data: JobData; userId: string; createdAt: number; tier: Tier; key: string; completedAt: number }
+  | { status: "failed"; error: Error; data: JobData; userId: string; createdAt: number; tier: Tier };
 
 const {
   REMOTION_AWS_REGION,
@@ -126,9 +126,18 @@ export const makeLambdaRenderQueue = () => {
       const cost = invocationCost(job.data, job.tier);
       activeInvocations[lane] += cost;
 
-      const start = job.data.type === "image" ? startStillRender(jobId, job.data, job.tier) : startMediaRender(jobId, job.data, job.tier);
+      const start = job.data.type === "image"
+        ? startStillRender(jobId, job.data, job.userId, job.createdAt, job.tier)
+        : startMediaRender(jobId, job.data, job.userId, job.createdAt, job.tier);
       start
-        .catch((error) => jobs.set(jobId, { status: "failed", error, data: job.data, tier: job.tier }))
+        .catch((error) => jobs.set(jobId, {
+          status: "failed",
+          error,
+          data: job.data,
+          tier: job.tier,
+          userId: job.userId,
+          createdAt: job.createdAt,
+        }))
         .finally(() => {
           activeInvocations[lane] -= cost;
           runNext();
@@ -136,12 +145,15 @@ export const makeLambdaRenderQueue = () => {
     }
   };
 
-  function createJob(data: JobData, tier: Tier): string {
+  function createJob(data: JobData, tier: Tier, userId: string): string {
     const jobId = randomUUID();
+    const createdAt = Date.now();
     jobs.set(jobId, {
       status: "queued",
       data,
       tier,
+      userId,
+      createdAt,
       cancel: () => {
         const idx = pendingJobIds.indexOf(jobId);
         if (idx !== -1) pendingJobIds.splice(idx, 1);
@@ -170,7 +182,20 @@ export const makeLambdaRenderQueue = () => {
     return { position: index + 1, total: laneJobIds.length };
   };
 
-  const startMediaRender = async (jobId: string, data: JobData, tier: Tier) => {
+  // "Active" = still holds the user's one-export-at-a-time slot: queued,
+  // rendering, or completed but not yet downloaded (download deletes the
+  // job). Failed jobs don't block - the user needs to be able to retry.
+  const getActiveJobForUser = (userId: string): { jobId: string; job: JobState } | null => {
+    for (const [jobId, job] of jobs.entries()) {
+      if (job.userId !== userId) continue;
+      if (job.status === "queued" || job.status === "in-progress" || job.status === "completed") {
+        return { jobId, job };
+      }
+    }
+    return null;
+  };
+
+  const startMediaRender = async (jobId: string, data: JobData, userId: string, createdAt: number, tier: Tier) => {
     const codec = MEDIA_CODEC_MAP[data.format];
     if (!codec) throw new Error(`Unsupported format for lambda media render: ${data.format}`);
 
@@ -199,20 +224,52 @@ export const makeLambdaRenderQueue = () => {
       },
     });
 
-    jobs.set(jobId, { status: "in-progress", progress: 0, data, tier, cancel: () => cancelledJobIds.add(jobId) });
-    pollUntilDone(jobId, renderId, siteBucketName, outKey, data, tier).catch((error) => {
-      jobs.set(jobId, { status: "failed", error, data, tier });
+    jobs.set(jobId, {
+      status: "in-progress",
+      progress: 0,
+      data,
+      tier,
+      cancel: () => cancelledJobIds.add(jobId),
+      userId: userId,
+      createdAt: createdAt,
+    });
+    pollUntilDone(
+      jobId,
+      renderId,
+      siteBucketName,
+      outKey,
+      data,
+      userId,
+      createdAt,
+      tier,
+    ).catch((error) => {
+      jobs.set(jobId, {
+        status: "failed",
+        error,
+        data,
+        tier,
+        userId: userId,
+        createdAt: createdAt,
+      });
     });
   };
 
-  const startStillRender = async (jobId: string, data: JobData, tier: Tier) => {
+  const startStillRender = async (jobId: string, data: JobData, userId: string, createdAt: number, tier: Tier) => {
     const imageFormat = STILL_FORMAT_MAP[data.format];
     if (!imageFormat) throw new Error(`Unsupported image format for lambda still: ${data.format}`);
 
     const outKey = `renders/${jobId}.${data.format}`;
     const frame = Math.round(((data.currentTime ?? 0) / 1000) * data.fps);
 
-    jobs.set(jobId, { status: "in-progress", progress: 0, data, tier, cancel: () => cancelledJobIds.add(jobId) });
+    jobs.set(jobId, {
+      status: "in-progress",
+      progress: 0,
+      data,
+      tier,
+      cancel: () => cancelledJobIds.add(jobId),
+      userId: userId,
+      createdAt: createdAt,
+    });
 
     const { url } = await renderStillOnLambda({
       region,
@@ -236,10 +293,19 @@ export const makeLambdaRenderQueue = () => {
       return;
     }
 
-    jobs.set(jobId, { status: "completed", videoUrl: url, data, tier, key: outKey, completedAt: Date.now() });
+    jobs.set(jobId, {
+      status: "completed",
+      videoUrl: url,
+      data,
+      tier,
+      key: outKey,
+      completedAt: Date.now(),
+      userId: userId,
+      createdAt: createdAt,
+    });
   };
 
-  const pollUntilDone = async (jobId: string, renderId: string, siteBucketName: string, outKey: string, data: JobData, tier: Tier) => {
+  const pollUntilDone = async (jobId: string, renderId: string, siteBucketName: string, outKey: string, data: JobData, userId: string, createdAt: number, tier: Tier) => {
     while (true) {
       if (cancelledJobIds.has(jobId)) {
         cancelledJobIds.delete(jobId);
@@ -255,12 +321,23 @@ export const makeLambdaRenderQueue = () => {
           error: new Error(progress.errors[0]?.message ?? "Lambda render failed"),
           data,
           tier,
+          userId: userId,
+          createdAt: createdAt,
         });
         return;
       }
 
       if (progress.done) {
-        jobs.set(jobId, { status: "completed", videoUrl: cdnUrl(outKey), data, tier, key: outKey, completedAt: Date.now() });
+        jobs.set(jobId, {
+          status: "completed",
+          videoUrl: cdnUrl(outKey),
+          data,
+          tier,
+          key: outKey,
+          completedAt: Date.now(),
+          userId: userId,
+          createdAt: createdAt,
+        });
         return;
       }
 
@@ -270,6 +347,8 @@ export const makeLambdaRenderQueue = () => {
         data,
         tier,
         cancel: () => cancelledJobIds.add(jobId),
+        userId: userId,
+        createdAt: createdAt,
       });
 
       await new Promise((r) => setTimeout(r, 1500));
@@ -308,6 +387,7 @@ export const makeLambdaRenderQueue = () => {
     jobs,
     createJob,
     getQueuePosition,
+    getActiveJobForUser,
     deleteJob,
   };
 };
