@@ -4,7 +4,44 @@ import { BoxAnim, ContentAnim, MaskAnim } from "@designcombo/animations";
 import { calculateContainerStyles, calculateMediaStyles } from "../styles";
 import { getAnimations } from "../../utils/get-animations";
 import { calculateFrames } from "../../utils/frames";
-import { OffthreadVideo } from "remotion";
+import { Video as RemotionVideo } from "@remotion/media";
+import { OffthreadVideo, useRemotionEnvironment } from "remotion";
+
+// Real component, so the hook lives in its own fiber. Video() below is called
+// as a plain function from renderVisibleItems, so it must not call hooks.
+const VideoMedia = ({ item, fps }: { item: IVideo; fps: number }) => {
+  // true in Lambda and server renders, false in the editor Player
+  const { isRendering } = useRemotionEnvironment();
+
+  const { details } = item;
+  const playbackRate = item.playbackRate || 1;
+  const hasTrimTo = typeof item.trim?.to === "number" && item.trim.to > 0;
+  const trimBefore = ((item.trim?.from ?? 0) / 1000) * fps;
+  const trimAfter = hasTrimTo ? (item.trim!.to! / 1000) * fps : undefined;
+  const volume = () => (details.volume ?? 100) / 100;
+
+  if (isRendering) {
+    return (
+      <OffthreadVideo
+        trimBefore={trimBefore}
+        trimAfter={trimAfter}
+        playbackRate={playbackRate}
+        src={details.src}
+        volume={volume}
+      />
+    );
+  }
+
+  return (
+    <RemotionVideo
+      trimBefore={trimBefore}
+      trimAfter={trimAfter}
+      playbackRate={playbackRate}
+      src={details.src}
+      volume={volume}
+    />
+  );
+};
 
 export const Video = ({
   item,
@@ -15,7 +52,6 @@ export const Video = ({
 }) => {
   const { fps, frame } = options;
   const { details, animations } = item;
-  const playbackRate = item.playbackRate || 1;
   const { animationIn, animationOut, animationTimed } = getAnimations(
     animations!,
     item,
@@ -30,9 +66,6 @@ export const Video = ({
   };
   const { durationInFrames } = calculateFrames(item.display, fps);
   const currentFrame = (frame || 0) - (item.display.from * fps) / 1000;
-
-  const trimFrom = item.trim?.from ?? 0;
-  const trimTo = item.trim?.to ?? item.display.to - item.display.from;
 
   const children = (
     <BoxAnim
@@ -55,13 +88,7 @@ export const Video = ({
           frame={frame || 0}
         >
           <div style={calculateMediaStyles(details, crop)}>
-            <OffthreadVideo
-              trimBefore={(trimFrom / 1000) * fps}
-              trimAfter={(trimTo / 1000) * fps || 1 / fps}
-              playbackRate={playbackRate}
-              src={details.src}
-              volume={() => (details.volume ?? 100) / 100}
-            />
+            <VideoMedia item={item} fps={fps} />
           </div>
         </MaskAnim>
       </ContentAnim>

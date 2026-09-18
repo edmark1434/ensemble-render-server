@@ -1,6 +1,43 @@
 import { IAudio } from "@designcombo/types";
 import { BaseSequence, SequenceItemOptions } from "../base-sequence";
-import { Html5Audio } from "remotion";
+import { Audio as RemotionAudio } from "@remotion/media";
+import { Html5Audio, useRemotionEnvironment } from "remotion";
+
+// Real component, so the hook lives in its own fiber. Audio() below is called
+// as a plain function from renderVisibleItems, so it must not call hooks.
+const AudioMedia = ({ item, fps }: { item: IAudio; fps: number }) => {
+  // true in Lambda and server renders, false in the editor Player
+  const { isRendering } = useRemotionEnvironment();
+
+  const { details } = item;
+  const playbackRate = item.playbackRate || 1;
+  const hasTrimTo = typeof item.trim?.to === "number" && item.trim.to > 0;
+  const trimBefore = ((item.trim?.from ?? 0) / 1000) * fps;
+  const trimAfter = hasTrimTo ? (item.trim!.to! / 1000) * fps : undefined;
+  const volume = () => (details.volume ?? 100) / 100;
+
+  if (isRendering) {
+    return (
+      <Html5Audio
+        trimBefore={trimBefore}
+        trimAfter={trimAfter}
+        playbackRate={playbackRate}
+        src={details.src}
+        volume={volume}
+      />
+    );
+  }
+
+  return (
+    <RemotionAudio
+      trimBefore={trimBefore}
+      trimAfter={trimAfter}
+      playbackRate={playbackRate}
+      src={details.src}
+      volume={volume}
+    />
+  );
+};
 
 export default function Audio({
   item,
@@ -10,20 +47,7 @@ export default function Audio({
   options: SequenceItemOptions;
 }) {
   const { fps } = options;
-  const { details } = item;
-  const playbackRate = item.playbackRate || 1;
 
-  const trimFrom = item.trim?.from ?? 0;
-  const trimTo = item.trim?.to ?? item.display.to - item.display.from;
-
-  const children = (
-    <Html5Audio
-      trimBefore={(trimFrom / 1000) * fps}
-      trimAfter={(trimTo / 1000) * fps || 1 / fps}
-      playbackRate={playbackRate}
-      src={details.src}
-      volume={() => (details.volume ?? 100) / 100}
-    />
-  );
+  const children = <AudioMedia item={item} fps={fps} />;
   return BaseSequence({ item, options, children });
 }

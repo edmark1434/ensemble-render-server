@@ -316,6 +316,10 @@ export const makeLambdaRenderQueue = () => {
       const progress = await getRenderProgress({ renderId, bucketName: siteBucketName, functionName, region });
 
       if (progress.fatalErrorEncountered) {
+        console.error(
+          `Lambda render ${renderId} failed:`,
+          JSON.stringify(progress.errors, null, 2)
+        );
         jobs.set(jobId, {
           status: "failed",
           error: new Error(progress.errors[0]?.message ?? "Lambda render failed"),

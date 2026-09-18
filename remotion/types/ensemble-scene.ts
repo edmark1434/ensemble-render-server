@@ -16,6 +16,11 @@ export interface ISceneDetails {
   thumbnail?: string;
   hidden?: boolean;
   locked?: boolean;
+  // 0-100, same scale as every other item's own `volume`. Applied as a
+  // multiplier over each inner item's own volume (see SceneContentLayer in
+  // player/items/ensemble-scene.tsx) — not a standalone level. Undefined
+  // behaves as 100 (no attenuation), matching every other item type's
+  // `volume ?? 100` convention.
   volume?: number;
   content?: SceneRenderContent;
 
@@ -65,4 +70,10 @@ export function isSceneItem(type: string | undefined | null): boolean {
 
 export function makeSceneTrackItem(item: ISceneTrackItem): ITrackItem {
   return item as unknown as ITrackItem;
+}
+
+export function makeSceneTrack(
+  track: Omit<ITrack, "type"> & { type: typeof SCENE_TYPE }
+): ITrack {
+  return track as unknown as ITrack;
 }

@@ -30,6 +30,7 @@ export const BaseSequence = ({
   children: React.ReactNode;
 }) => {
   const { details } = item as ITrackItem;
+
   const { fps, isTransition, nested } = options;
   const { from, durationInFrames } = calculateFrames(
     {
@@ -75,14 +76,17 @@ export const BaseSequence = ({
     );
   }
 
+  if (durationInFrames <= 0) {
+    console.warn(`BaseSequence: skipping item ${item.id} (${item.type}) — durationInFrames resolved to ${durationInFrames}`);
+    return null;
+  }
+
   return (
     <Sequence
       key={item.id}
       from={from}
-      durationInFrames={durationInFrames || 1 / fps}
-      style={{
-        pointerEvents: "none"
-      }}
+      durationInFrames={durationInFrames}
+      style={{ pointerEvents: "none" }}
     >
       <AbsoluteFill
         id={item.id}

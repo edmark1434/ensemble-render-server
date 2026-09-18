@@ -21,6 +21,8 @@
     "@remotion/cli": "4.0.503",
     "@remotion/fonts": "4.0.503",
     "@remotion/lambda": "4.0.503",
+    "@remotion/media": "^4.0.503",
+    "@remotion/paths": "^4.0.503",
     "@remotion/renderer": "4.0.503",
     "@remotion/transitions": "4.0.503",
     "@remotion/zod-types": "4.0.503",
