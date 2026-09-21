@@ -75,6 +75,8 @@ const LANE_INVOCATION_BUDGET: Record<Lane, number> = {
   proBusiness: 902,
 };
 
+const DOWNLOAD_GRACE_MS = 10 * 60 * 1000;
+
 export const makeLambdaRenderQueue = () => {
   const missing = [
     ["REMOTION_AWS_REGION", REMOTION_AWS_REGION],
@@ -271,7 +273,7 @@ export const makeLambdaRenderQueue = () => {
       createdAt: createdAt,
     });
 
-    const { url } = await renderStillOnLambda({
+    await renderStillOnLambda({
       region,
       functionName,
       serveUrl,
@@ -295,7 +297,7 @@ export const makeLambdaRenderQueue = () => {
 
     jobs.set(jobId, {
       status: "completed",
-      videoUrl: url,
+      videoUrl: cdnUrl(outKey),
       data,
       tier,
       key: outKey,
@@ -378,9 +380,13 @@ export const makeLambdaRenderQueue = () => {
     }
 
     if (job.status === "completed") {
-      await s3
-        .send(new DeleteObjectCommand({ Bucket: bucketName, Key: job.key }))
-        .catch((error) => console.error(`Failed to delete S3 object for job ${jobId}:`, error));
+      const key = job.key;
+      // slot is freed right away, but the file stays long enough for the browser's GET to finish
+      setTimeout(() => {
+        s3
+          .send(new DeleteObjectCommand({ Bucket: bucketName, Key: key }))
+          .catch((error) => console.error(`Failed to delete S3 object for job ${jobId}:`, error));
+      }, DOWNLOAD_GRACE_MS);
     }
 
     jobs.delete(jobId);

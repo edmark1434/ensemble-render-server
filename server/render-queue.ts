@@ -74,6 +74,8 @@ const zipDirectory = (sourceDir: string, outputZipPath: string): Promise<void> =
   });
 };
 
+const DOWNLOAD_GRACE_MS = 10 * 60 * 1000;
+
 export const makeRenderQueue = ({
   port,
   serveUrl,
@@ -100,6 +102,8 @@ export const makeRenderQueue = ({
     OUTPUT_BUCKET_NAME,
     CLOUDFRONT_DOMAIN,
   } = process.env;
+
+  const publicBaseUrl = process.env.RENDER_SERVER_URL ?? `http://localhost:${port}`;
 
   const missingOverflowEnv = [
     ["REMOTION_AWS_REGION", REMOTION_AWS_REGION],
@@ -276,7 +280,7 @@ export const makeRenderQueue = ({
 
         jobs.set(jobId, {
           status: "completed",
-          videoUrl: `http://localhost:${port}/renders/${jobId}.${job.data.format}`,
+          videoUrl: `${publicBaseUrl}/renders/${jobId}.${job.data.format}`,
           data: job.data,
           renderedVia: "local",
           outputPath,
@@ -339,7 +343,7 @@ export const makeRenderQueue = ({
 
         jobs.set(jobId, {
           status: "completed",
-          videoUrl: `http://localhost:${port}/renders/${jobId}.zip`,
+          videoUrl: `${publicBaseUrl}/renders/${jobId}.zip`,
           data: job.data,
           renderedVia: "local",
           outputPath: zipPath,
@@ -402,7 +406,7 @@ export const makeRenderQueue = ({
 
       jobs.set(jobId, {
         status: "completed",
-        videoUrl: `http://localhost:${port}/renders/${jobId}.${mediaFormat.ext}`,
+        videoUrl: `${publicBaseUrl}/renders/${jobId}.${mediaFormat.ext}`,
         data: job.data,
         renderedVia: "local",
         outputPath,
@@ -555,9 +559,13 @@ export const makeRenderQueue = ({
       if (job.renderedVia === "local") {
         await fs.rm(job.outputPath, { recursive: true, force: true }).catch(() => {});
       } else {
-        await s3
-          .send(new DeleteObjectCommand({ Bucket: overflowBucketName, Key: job.s3Key }))
-          .catch((error) => console.error(`Failed to delete S3 object for overflow job ${jobId}:`, error));
+        const key = job.s3Key;
+        // the browser downloads straight from CloudFront, so give its GET time to finish
+        setTimeout(() => {
+          s3
+            .send(new DeleteObjectCommand({ Bucket: overflowBucketName, Key: key }))
+            .catch((error) => console.error(`Failed to delete S3 object for overflow job ${jobId}:`, error));
+        }, DOWNLOAD_GRACE_MS);
       }
     }
 
