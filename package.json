@@ -5,7 +5,7 @@
   "scripts": {
     "build": "remotion bundle",
     "dev": "tsx watch --env-file=.env server",
-    "start": "tsx --env-file=.env server",
+    "start": "tsx server",
     "lint": "eslint . && tsc",
     "remotion:upgrade": "remotion upgrade",
     "remotion:studio": "remotion studio"
